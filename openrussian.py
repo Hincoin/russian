@@ -19,11 +19,17 @@ def strip_accent(line):
 	return bare
 
 def generate_api_request_for_word(word):
+	# Create the URL that we need to fetch from requests lib
+	# for a given word.
 	return "https://api.openrussian.org/suggestions?q={}&lang=en".format(word)
 
 def generate_api_request_for_csv_entry(entry):
 	#russian,english
 	print("Entry = {}".format(entry))
+
+	# Sometimes the english portion has commas.
+	# We only want to split on the first comma since this
+	# is a CSV file. 
 	russian, english = entry.split(',', 1)
 
 	# There may be a number of russian words, since some CSV entries 
@@ -34,18 +40,24 @@ def generate_api_request_for_csv_entry(entry):
 	http_requests = tuple(
 		generate_api_request_for_word(word) for word in russian_words
 	)
+
+	# Make a tuple consisting of the original entry (for-rewriting)
+	# and the requests (to execute)
 	return (entry, http_requests)
 
 def make_word_request(word):
 	return requests.get(word)
 
 def make_csv_request(entry_pair):
+	# Execute the actual HTTP request. 
 	entry, raw_reqs = entry_pair
 	reqs = tuple(
 		requests.get(raw_req) for raw_req in raw_reqs
 	)
 	return (entry, reqs)
 
+# Helper functions to verify that the generated link is valid. 
+# Callsite is currently commented out since it takes far too long.
 def verify_link(link):
 	return (link, requests.get(link[1:-1]).status_code)
 def verify_links(links):
@@ -57,6 +69,8 @@ def verify_links(links):
 			if code != 200:
 				print("***** {} has code {}".format(link, code))
 
+# Parse the JSON result of the request and
+# make a link to openrussian.org
 def make_link_from_request(req):
 	js = req.json()
 	if 'result' not in js:
@@ -77,7 +91,7 @@ def make_link_from_request(req):
 
 def russify_csv(csv_file):
 	with open(csv_file, 'r') as f:
-		lines = f.readlines()[1:]
+		lines = f.readlines()[1:] # First line is a header
 		csv_entry_requests = [generate_api_request_for_csv_entry(line) for line in lines]
 		new_file_contents = []
 		with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -88,25 +102,10 @@ def russify_csv(csv_file):
 				links = []
 				for r in res:
 					link = make_link_from_request(r)
-					links.append("'{}'".format(link))
-					# # js = json.loads(r.json())
-					# # d = ast.literal_eval(js)
-					# js = r.json()
-					# if 'result' not in js:
-					# 	continue
-					# if 'words' in js['result']:
-					# 	words = js['result']["words"]
-					# 	if words:
-					# 		word = words[0]
-					# 		ru = word['ru']
-					# 		ru = strip_accent(ru)
-					# 		links.append("'https://en.openrussian.org/ru/{}'".format(ru))
-					# else:
-					# 	pass#print("no words for {}".format(entry))
-					# #print("Got: {}".format(r.json()))
+					if link:
+						links.append("'{}'".format(link))
 
 				#verify_links(links)
-				#print("Got links for {}".format(entry))
 				row = entry.replace('\n','').split(',', 1)
 				row.extend(links)
 				new_file_contents.append(row)
@@ -127,9 +126,13 @@ def russify_words(words):
 
 	with concurrent.futures.ThreadPoolExecutor() as executor:
 		results = executor.map(make_word_request, word_requests)
-		for result in results:
+		for index, result in enumerate(results):
+			og_word = words[index]
 			link = make_link_from_request(result)
-			print("{}".format(link))
+			if link:
+				print("{}".format(link))
+			else:
+				print("No entry found for '{}' :(".format(og_word))
 
 
 
