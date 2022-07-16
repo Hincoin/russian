@@ -69,24 +69,48 @@ def verify_links(links):
 			if code != 200:
 				print("***** {} has code {}".format(link, code))
 
-# Parse the JSON result of the request and
-# make a link to openrussian.org
-def make_link_from_request(req):
-	js = req.json()
-	if 'result' not in js:
-		return []
-	result = js['result']
-	if 'words' not in result:
+
+def resolve_json_form_of(formOf):
+	form = formOf[0]
+	source = form.get("source")
+	if not source:
 		return []
 
-	words = js['result']["words"]
-	if not words:
-		return []
+	ru = source['ru']
+	ru = strip_accent(ru)
+	return "https://en.openrussian.org/ru/{}".format(ru)
 
+def resolve_json_words(words):
 	word = words[0]
 	ru = word['ru']
 	ru = strip_accent(ru)
 	return "https://en.openrussian.org/ru/{}".format(ru)
+
+# Parse the JSON result of the request and
+# make a link to openrussian.org
+def make_link_from_request(req):
+	# Each JSON response should have a 'result' key if it
+	# is present in the API.
+	js = req.json()
+	result = js.get('result')
+	if not result:
+		return []
+
+	# Within the 'result' dictionary, we'll evaluate which of the sub-keys
+	# to pick from. 
+
+	# Sometimes we'll have a 'formOf' subkey, which is typically
+	# best for resolving other forms of words -- e.g. past tense, cases, masculine/feminine/neut/plural. 
+	formOf = result.get('formOf')
+	words = result.get('words')
+	if not formOf and not words:
+		# Neither one matched
+		return []
+	elif formOf:
+		# formOf should be preferred if it has an entry
+		return resolve_json_form_of(formOf)
+	else:
+		return resolve_json_words(words)
 
 
 def russify_csv(csv_file):
@@ -119,21 +143,29 @@ def russify_csv(csv_file):
 
 		print("Done writing to {}".format(new_file_name))
 
-def russify_words(words):
+
+def russify_words_impl(words):
 	word_requests = [
 		generate_api_request_for_word(word) for word in words
 	]
 
+	russian_words = []
 	with concurrent.futures.ThreadPoolExecutor() as executor:
 		results = executor.map(make_word_request, word_requests)
 		for index, result in enumerate(results):
 			og_word = words[index]
 			link = make_link_from_request(result)
-			if link:
-				print("{}".format(link))
-			else:
-				print("No entry found for '{}' :(".format(og_word))
+			russian_words.append((link, og_word))
 
+	return russian_words
+def russify_words(words):
+
+	results = russify_words_impl(words)
+	for link, og_word in results:
+		if link:
+			print("{}".format(link))
+		else:
+			print("No entry found for '{}' :(".format(og_word))
 
 
 if __name__ == "__main__":
