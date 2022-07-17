@@ -43,3 +43,25 @@ https://en.openrussian.org/ru/кофе
 https://en.openrussian.org/ru/кофе
 https://en.openrussian.org/ru/молоко
 https://en.openrussian.org/ru/завтрак
+```
+
+
+### Tests
+Unit tests can be run from the root of the repo. E.g.:
+
+```
+% python3 -m unittest discover -s tests -v    
+test_basic_english (test_english_translation.TestEnglishTranslations)
+Test that basic english words can convert to openrussian links ... ok
+test_case_changes (test_word_forms.TestWordForms)
+Test that we can resolve case changes of a word into its dictionary form ... ok
+test_future_tense_verbs (test_word_forms.TestWordForms)
+Test that we can correctly resolve future tense verbs into their perfective form. ... ok
+test_past_tense_verbs (test_word_forms.TestWordForms)
+Test that we can correctly resolve past-tense verbs into their infinitive form. ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 14.075s
+
+OK
+```
